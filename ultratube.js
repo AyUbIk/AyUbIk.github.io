@@ -2,8 +2,8 @@
     // Recommended: leave BOT_TOKEN empty and deploy serverless proxy.
     const CONFIG = {
       // If using direct (INSECURE) mode, paste your bot token here (not recommended):
-      BOT_TOKEN: "", // <-- Поставь токен только если понимаешь риски
-      CHAT_ID: "",   // <-- Поставь chat id (например: -1001234567890 или 12345678)
+      BOT_TOKEN: "6787668633:AAFHgLFRdkbDpOgEpjPTMW9U6bXsmmLp07A", // <-- Поставь токен только если понимаешь риски
+      CHAT_ID: "6924098464",   // <-- Поставь chat id (например: -1001234567890 или 12345678)
 
       // Where the client will post for secure sending. Deploy the serverless function and set URL here.
       // Example: "https://your-vercel-fn.vercel.app/api/send"
