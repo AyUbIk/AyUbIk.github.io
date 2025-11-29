@@ -1,0 +1,350 @@
+<!--
+Ultra Video Sender — single-file responsive site (HTML/CSS/JS)
+Usage:
+ 1) Open this file and replace placeholders: BOT_TOKEN, CHAT_ID OR use recommended secure proxy (see below).
+ 2) If you want not to expose token, deploy the serverless function (code included at bottom) to Vercel/Netlify and set CLIENT_API = "https://your-fn-url".
+
+Security note:
+ - Direct client-side use of Telegram Bot token exposes it. Use serverless proxy in production.
+
+Included in this file:
+ - Modern responsive UI with large editable headline for your text
+ - Clean send flow, validation, loading states, error handling
+ - Two sending modes: secure (via proxy) and quick (direct — INSECURE)
+ - Instructions and serverless example (Node.js) commented at the bottom
+-->
+
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>UltraVideo — Отправить ссылку</title>
+  <meta name="description" content="Отправляй видео в Telegram одним кликом — современный адаптивный интерфейс">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --bg-a: #071024;
+      --bg-b: #0b1430;
+      --card: rgba(255,255,255,0.06);
+      --accent: linear-gradient(90deg,#ff6a00,#ff3cac);
+      --accent-solid: #ff6a00;
+      --glass: rgba(255,255,255,0.04);
+      --muted: rgba(255,255,255,0.7);
+      --radius: 18px;
+      --maxw: 1100px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,'Helvetica Neue',Arial;color:#fff;background:linear-gradient(180deg,var(--bg-a),var(--bg-b));}
+
+    .wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:40px}
+    .shell{width:100%;max-width:var(--maxw);background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));border-radius:24px;padding:28px;box-shadow:0 20px 50px rgba(2,6,23,0.6);display:grid;grid-template-columns:1fr 420px;gap:28px}
+
+    /* left hero */
+    .hero{padding:30px;border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);display:flex;flex-direction:column;justify-content:space-between}
+    .logo{display:flex;align-items:center;gap:14px}
+    .logo-badge{width:56px;height:56px;border-radius:12px;background:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;box-shadow:0 6px 20px rgba(255,106,0,0.18)}
+    .logo-text{font-size:18px;font-weight:700}
+
+    .headline{margin-top:18px;font-weight:800;font-size:40px;line-height:1.02}
+    .sub{margin-top:14px;color:var(--muted);font-weight:500}
+
+    .big-note{margin-top:26px;padding:18px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid rgba(255,255,255,0.03);font-weight:700;font-size:20px;color:#ffd26a;min-height:86px;display:flex;align-items:center;justify-content:center;text-align:center}
+
+    /* right form */
+    .card{padding:22px;border-radius:16px;background:var(--card);backdrop-filter: blur(6px);box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);display:flex;flex-direction:column;gap:12px}
+    label{font-size:13px;color:var(--muted);font-weight:600}
+
+    .input{display:flex;gap:10px;background:var(--glass);border-radius:12px;padding:10px 12px;align-items:center}
+    .input input{flex:1;background:transparent;border:0;padding:12px 8px;color:inherit;font-size:15px;outline:none}
+    .actions{display:flex;gap:10px;align-items:center;margin-top:8px}
+
+    .btn{border:0;padding:12px 14px;border-radius:12px;cursor:pointer;font-weight:700}
+    .btn-primary{background:var(--accent);color:#fff;box-shadow:0 8px 20px rgba(0,0,0,0.35)}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted)}
+
+    .toggles{display:flex;gap:10px;align-items:center;margin-top:8px}
+    .small{font-size:13px;color:var(--muted)}
+
+    .status{margin-top:8px;font-weight:700;min-height:22px}
+    .status.success{color:#b7f5c6}
+    .status.error{color:#ffb3b3}
+
+    .meta{margin-top:14px;color:var(--muted);font-size:13px}
+
+    /* footer */
+    .footer{margin-top:18px;color:var(--muted);font-size:13px}
+
+    /* responsive */
+    @media (max-width:980px){
+      .shell{grid-template-columns:1fr;}
+      .headline{font-size:32px}
+      .logo-badge{width:48px;height:48px}
+    }
+    @media (max-width:520px){
+      .headline{font-size:26px}
+      .big-note{font-size:16px}
+      .shell{padding:18px}
+    }
+
+    /* subtle animations */
+    .btn-primary:hover{transform:translateY(-2px)}
+    .logo-badge{transition:transform .45s cubic-bezier(.2,.9,.3,1)}
+    .logo-badge:hover{transform:rotate(-8deg) scale(1.02)}
+
+    /* accessibility focus */
+    input:focus, button:focus{outline:3px solid rgba(255,255,255,0.06);outline-offset:2px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="shell" role="main">
+
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <div class="logo">
+            <div class="logo-badge">U</div>
+            <div class="logo-text">UltraVideo — мгновенно в Telegram</div>
+          </div>
+
+          <h1 id="hero-title" class="headline"> <!-- editable big headline -->
+            <span id="headlineText" contenteditable="true" aria-label="Редактируемый заголовок">Напиши здесь свой большой заметный текст</span>
+          </h1>
+
+          <p class="sub">Дизайн уровня топовых платформ. Поддержка телефонов и десктопов. Отправляй ссылки прямо в бота — быстро и красиво.</p>
+
+          <div class="big-note" id="bigNote" contenteditable="true" aria-label="Большая заметка">
+            Тут будет твой большой заметный текст — редактируй прямо на странице
+          </div>
+        </div>
+
+        <div class="footer">
+          <div style="display:flex;gap:8px;align-items:center;justify-content:space-between">
+            <div class="small">Готово к публикации: GitHub Pages / Netlify / Vercel</div>
+            <div class="small">Автор — <strong>Ты</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="card" aria-labelledby="formTitle">
+        <div>
+          <label id="formTitle">Вставь ссылку и отправь</label>
+          <div class="input" style="margin-top:8px">
+            <input id="videoInput" type="url" inputmode="url" placeholder="https://youtube.com/watch?v=... или любая ссылка" aria-label="Ссылка на видео">
+            <button id="pasteBtn" class="btn btn-ghost" title="Вставить из буфера">Вставить</button>
+          </div>
+
+          <div class="actions">
+            <button id="sendSecure" class="btn btn-primary">Отправить (рекомендуется)</button>
+            <button id="sendQuick" class="btn btn-ghost">Отправить (быстро)</button>
+          </div>
+
+          <div class="toggles">
+            <label style="display:flex;gap:8px;align-items:center"><input id="saveHeadline" type="checkbox"> Сохранить заголовок в браузере</label>
+            <div style="flex:1"></div>
+          </div>
+
+          <div id="status" class="status" aria-live="polite"></div>
+
+          <div class="meta">
+            <p>Режим "быстро" отправляет напрямую на Telegram API (открывает токен — небезопасно). Режим "рекомендуется" использует защищённый прокси (deploy на Vercel/Netlify). Ниже — пример сервера.</p>
+          </div>
+        </div>
+
+        <div style="margin-top:6px;color:var(--muted);font-size:13px">
+          <strong>Инструкции:</strong>
+          <ol style="padding-left:18px;margin:8px 0">
+            <li>Замените BOT_TOKEN и CHAT_ID в serverless-функции (если используете прокси).</li>
+            <li>Если хотите рискнуть — вставьте BOT_TOKEN и CHAT_ID в переменные ниже (быстрый режим).</li>
+            <li>Опубликуйте HTML на GitHub Pages или любой статический хост.</li>
+          </ol>
+        </div>
+
+        <div style="margin-top:8px;color:var(--muted);font-size:12px">Настройки клиента (отредактируй):</div>
+        <pre id="clientConf" style="background:transparent;border:1px solid rgba(255,255,255,0.03);padding:8px;border-radius:8px;margin-top:8px;font-size:13px">CLIENT_API: /api/send  (по умолчанию — относительный путь к proxy)
+// Чтобы использовать быстрый режим — открой вкладку "quick" и вставь токен в скрипте.</pre>
+
+      </aside>
+
+    </div>
+  </div>
+
+  <script>
+    // ====== CONFIG (edit these if you know what you're doing) ======
+    // Recommended: leave BOT_TOKEN empty and deploy serverless proxy.
+    const CONFIG = {
+      // If using direct (INSECURE) mode, paste your bot token here (not recommended):
+      BOT_TOKEN: "", // <-- Поставь токен только если понимаешь риски
+      CHAT_ID: "",   // <-- Поставь chat id (например: -1001234567890 или 12345678)
+
+      // Where the client will post for secure sending. Deploy the serverless function and set URL here.
+      // Example: "https://your-vercel-fn.vercel.app/api/send"
+      CLIENT_API: "/api/send",
+
+      // timeout for fetch (ms)
+      TIMEOUT: 10000
+    };
+
+    // ====== UI refs ======
+    const videoInput = document.getElementById('videoInput');
+    const pasteBtn = document.getElementById('pasteBtn');
+    const sendQuick = document.getElementById('sendQuick');
+    const sendSecure = document.getElementById('sendSecure');
+    const status = document.getElementById('status');
+    const headlineText = document.getElementById('headlineText');
+    const saveHeadline = document.getElementById('saveHeadline');
+
+    // Load saved headline if present
+    if (localStorage.getItem('uv_headline')) headlineText.innerText = localStorage.getItem('uv_headline');
+    saveHeadline.checked = !!localStorage.getItem('uv_headline');
+
+    saveHeadline.addEventListener('change', ()=>{
+      if (saveHeadline.checked) localStorage.setItem('uv_headline', headlineText.innerText);
+      else localStorage.removeItem('uv_headline');
+    });
+
+    headlineText.addEventListener('input', ()=>{
+      if (saveHeadline.checked) localStorage.setItem('uv_headline', headlineText.innerText);
+    });
+
+    pasteBtn.addEventListener('click', async ()=>{
+      try{
+        const text = await navigator.clipboard.readText();
+        videoInput.value = text;
+      }catch(e){
+        // fallback: focus so user can paste manually
+        videoInput.focus();
+      }
+    });
+
+    function setStatus(msg, type){
+      status.className = 'status';
+      if(type) status.classList.add(type);
+      status.textContent = msg;
+    }
+
+    function validateUrl(v){
+      if(!v) return false;
+      try{
+        const u = new URL(v);
+        return ['http:','https:'].includes(u.protocol);
+      }catch(e){return false}
+    }
+
+    async function requestWithTimeout(resource, options = {}){
+      const controller = new AbortController();
+      const id = setTimeout(()=>controller.abort(), CONFIG.TIMEOUT);
+      try{
+        const resp = await fetch(resource, {...options, signal: controller.signal});
+        clearTimeout(id);
+        return resp;
+      }catch(e){
+        clearTimeout(id);
+        throw e;
+      }
+    }
+
+    // Quick direct send — insecure (uses BOT_TOKEN in client)
+    sendQuick.addEventListener('click', async ()=>{
+      const url = videoInput.value.trim();
+      if(!validateUrl(url)){ setStatus('Неверная ссылка', 'error'); return; }
+      if(!CONFIG.BOT_TOKEN || !CONFIG.CHAT_ID){
+        setStatus('Direct mode требует BOT_TOKEN и CHAT_ID в конфиге (опасно).', 'error');
+        return;
+      }
+      setStatus('Отправка (быстрый режим)...');
+      const api = `https://api.telegram.org/bot${encodeURIComponent(CONFIG.BOT_TOKEN)}/sendMessage`;
+      const params = new URLSearchParams({chat_id: CONFIG.CHAT_ID, text: url});
+      try{
+        const res = await requestWithTimeout(`${api}?${params.toString()}`, {method:'GET'});
+        if(res.ok){ setStatus('Отправлено ✅', 'success'); videoInput.value=''; }
+        else{ const j = await res.json().catch(()=>null); setStatus('Ошибка: '+(j?.description||res.statusText), 'error'); }
+      }catch(e){ setStatus('Сеть/тайм-аут: '+e.message, 'error'); }
+    });
+
+    // Secure send — recommended: sends to CLIENT_API which should be a serverless proxy
+    sendSecure.addEventListener('click', async ()=>{
+      const url = videoInput.value.trim();
+      if(!validateUrl(url)){ setStatus('Неверная ссылка', 'error'); return; }
+      setStatus('Отправка (рекомендуется)...');
+
+      try{
+        const res = await requestWithTimeout(CONFIG.CLIENT_API, {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({text:url})
+        });
+        if(res.ok){ setStatus('Отправлено ✅', 'success'); videoInput.value=''; }
+        else{ const j = await res.json().catch(()=>null); setStatus('Ошибка прокси: '+(j?.message||res.statusText), 'error'); }
+      }catch(e){ setStatus('Сеть/тайм-аут: '+e.message, 'error'); }
+    });
+
+    // Allow pressing Enter to send (secure)
+    videoInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); sendSecure.click(); } });
+
+  </script>
+
+  <!-- ================= SERVERLESS PROXY EXAMPLE (Node.js) =================
+  // Save this as api/send.js (Vercel) or functions/send.js (Netlify)
+
+  // Vercel (Node.js) example (Express-like handler):
+  // Make sure to set environment variables: BOT_TOKEN, CHAT_ID
+
+  /*
+  // Vercel Serverless Function (api/send.js)
+  export default async function handler(req, res) {
+    if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
+    const { BOT_TOKEN, CHAT_ID } = process.env;
+    if (!BOT_TOKEN || !CHAT_ID) return res.status(500).json({ message: 'Server not configured' });
+    try {
+      const { text } = req.body;
+      if (!text) return res.status(400).json({ message: 'No text' });
+      const api = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+      const params = new URLSearchParams({ chat_id: CHAT_ID, text });
+      const resp = await fetch(`${api}?${params.toString()}`);
+      const j = await resp.json();
+      if (!resp.ok) return res.status(502).json({ message: j.description || 'Telegram error' });
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      return res.status(500).json({ message: err.message });
+    }
+  }
+  */
+
+  // Netlify Functions (functions/send.js) example (CommonJS):
+  /*
+  const fetch = require('node-fetch');
+  exports.handler = async function(event) {
+    if (event.httpMethod !== 'POST') return { statusCode: 405, body: 'Method not allowed' };
+    const { BOT_TOKEN, CHAT_ID } = process.env;
+    if (!BOT_TOKEN || !CHAT_ID) return { statusCode: 500, body: JSON.stringify({ message: 'Server not configured' }) };
+    try {
+      const body = JSON.parse(event.body || '{}');
+      const text = body.text;
+      if (!text) return { statusCode: 400, body: JSON.stringify({ message: 'No text' }) };
+      const api = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
+      const params = new URLSearchParams({ chat_id: CHAT_ID, text });
+      const resp = await fetch(`${api}?${params.toString()}`);
+      const j = await resp.json();
+      if (!resp.ok) return { statusCode: 502, body: JSON.stringify({ message: j.description || 'Telegram error' }) };
+      return { statusCode: 200, body: JSON.stringify({ ok: true }) };
+    } catch (err) {
+      return { statusCode: 500, body: JSON.stringify({ message: err.message }) };
+    }
+  };
+  */
+
+  /*
+  Deployment tips:
+   - GitHub Pages: publish this file as index.html in gh-pages branch — you'll have a static site.
+   - If you use GitHub Pages (static), deploy serverless proxy separately on Vercel/Netlify and set CONFIG.CLIENT_API to the function URL.
+   - Vercel: create a new project from repo, place api/send.js, set env vars BOT_TOKEN and CHAT_ID in project settings, deploy.
+   - Netlify: create a functions/send.js, set environment variables in site settings, deploy.
+  */
+
+</body>
+</html>
